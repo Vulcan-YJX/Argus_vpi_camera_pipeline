@@ -4,11 +4,14 @@ project(argus_vpi)
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
+
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+    add_compile_options(-Wno-missing-field-initializers -Wno-unused-parameter)
+endif()
+
 set(CMAKE_CXX_FLAGS "-std=c++17 -Wall -O3")
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" "${CMAKE_MODULE_PATH}")
 
-# include_directories("/usr/include/opencv4")
-# link_directories("/usr/lib/aarch64-linux-gnu")
 set(OpenCV_DIR /usr/lib/aarch64-linux-gnu/cmake/opencv4)
 
 find_package(Argus REQUIRED)
@@ -18,7 +21,6 @@ find_package(OpenCV REQUIRED)
 find_package(vpi REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBDRM REQUIRED libdrm)
-
 find_library(V4L2_LIB v4l2 REQUIRED)
 
 message(STATUS "Found OpenCV version: ${OpenCV_VERSION}")
@@ -41,9 +43,6 @@ include_directories(
 )
 
 add_library(${PROJECT_NAME}_lib SHARED
-	#src/argus_consumer.cpp
-	#src/argus_camera_node.cpp
-
     src/NvApplicationProfiler.cpp
     src/NvBuffer.cpp
     src/NvBufSurface.cpp
@@ -57,17 +56,15 @@ add_library(${PROJECT_NAME}_lib SHARED
     src/NvUtils.cpp
     src/NvV4l2Element.cpp
     src/NvV4l2ElementPlane.cpp
-    # src/NvVideoEncoder.cpp
-    # src/NvVideoDecoder.cpp
 )
 
-add_executable(${PROJECT_NAME}
-   src/main.cpp
+add_executable(argus_vpi_oneshot
+   samples/argus_vpi_oneshot.cpp
 )
 
 set(NVV4L2_LIB_PATH /usr/lib/aarch64-linux-gnu/libv4l2.so)
 set(NVTRANS_LIB_PATH /usr/lib/aarch64-linux-gnu/nvidia/libnvbufsurftransform.so)
-target_link_libraries(${PROJECT_NAME}
+target_link_libraries(argus_vpi_oneshot
    ${ARGUS_LIBRARIES}
    ${OpenCV_LIBS}
    argussampleutils
@@ -79,26 +76,17 @@ target_link_libraries(${PROJECT_NAME}
    )
 
 
+add_executable(argus_vpi_stereo_undistort
+   samples/argus_vpi_stereo_undistort.cpp
+)
 
-# Compiling: main.cpp
-# make[1]: Entering directory '/usr/src/jetson_multimedia_api/samples/common/classes'
-# Compiling: NvApplicationProfiler.cpp
-# Compiling: NvBuffer.cpp
-# Compiling: NvBufSurface.cpp
-# Compiling: NvDrmRenderer.cpp
-# Compiling: NvEglRenderer.cpp
-# Compiling: NvElement.cpp
-# Compiling: NvElementProfiler.cpp
-# Compiling: NvJpegDecoder.cpp
-# Compiling: NvJpegEncoder.cpp
-# Compiling: NvLogging.cpp
-# Compiling: NvUtils.cpp
-# Compiling: NvV4l2Element.cpp
-# Compiling: NvV4l2ElementPlane.cpp
-# Compiling: NvVideoDecoder.cpp
-# Compiling: NvVideoEncoder.cpp
-# make[1]: Leaving directory '/usr/src/jetson_multimedia_api/samples/common/classes'
-# Compiling: /usr/src/jetson_multimedia_api/argus/samples/utils/Thread.cpp
-# Compiling: /usr/src/jetson_multimedia_api/argus/samples/utils/NativeBuffer.cpp
-# Compiling: /usr/src/jetson_multimedia_api/argus/samples/utils/nvmmapi/NvNativeBuffer.cpp
-# Linking: argus_camera_recording
+target_link_libraries(argus_vpi_stereo_undistort
+  ${ARGUS_LIBRARIES}
+  ${OpenCV_LIBS}
+  argussampleutils
+  ${PROJECT_NAME}_lib
+  ${LIBDRM_LIBRARIES} 
+  vpi
+  ${NVTRANS_LIB_PATH}
+  ${NVV4L2_LIB_PATH}
+  )
