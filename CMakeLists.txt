@@ -15,7 +15,7 @@ find_package(Argus REQUIRED)
 find_package(OpenGLES REQUIRED)
 find_package(EGL REQUIRED)
 find_package(OpenCV REQUIRED)
-find_package(vpi 3.2 REQUIRED)
+find_package(vpi REQUIRED)
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(LIBDRM REQUIRED libdrm)
 
