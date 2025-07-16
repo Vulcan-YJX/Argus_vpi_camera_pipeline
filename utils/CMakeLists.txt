@@ -28,6 +28,8 @@ cmake_minimum_required (VERSION 2.6...3.22.1)
 
 project(argussampleutils)
 
+add_compile_options(-w)
+
 set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake" "${CMAKE_MODULE_PATH}")
 
 find_package(Argus COMPONENTS ARGUS_INCLUDE_DIR OPTIONAL_COMPONENTS ARGUS_LIBRARY)

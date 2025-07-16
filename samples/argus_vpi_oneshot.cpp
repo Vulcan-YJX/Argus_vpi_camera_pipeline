@@ -288,7 +288,7 @@ int main(int argc, char** argv)
           printf("\tFailed to create NvBuffer\n");
         }
         else{
-          printf("\tcreate NvBuffer\n");
+        //   printf("\tcreate NvBuffer\n");
           NvBufSurface *nvbuf_surf = 0;
           int ret = 0;
           ret = NvBufSurfaceFromFd (m_dmabuf, (void**)(&nvbuf_surf));
