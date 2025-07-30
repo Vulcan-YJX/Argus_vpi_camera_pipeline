@@ -1,33 +1,18 @@
-/*
- * Copyright (c) 2020-2024, NVIDIA CORPORATION. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *  * Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- *  * Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *  * Neither the name of NVIDIA CORPORATION nor the names of its
- *    contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS ``AS IS'' AND ANY
- * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
- * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
- * PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY
- * OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
- * (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
- * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
+// Copyright (c) 2025 VulcanYJX
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
 
-#include "opencv2/opencv.hpp"
+//     http://www.apache.org/licenses/LICENSE-2.0
+
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include "ArgusHelpers.h"
+#include "CommonOptions.h"
 #include "EGLGlobal.h"
 #include "Error.h"
 #include "Thread.h"
@@ -52,11 +37,9 @@
 #include <vpi/algo/ConvertImageFormat.h>
 #include <vpi/LensDistortionModels.h>
 
-
 class shutdown;
 using namespace Argus;
 using namespace EGLStream;
-
 
 #define CHECK_STATUS(STMT)                                    \
     do                                                        \
@@ -72,6 +55,7 @@ using namespace EGLStream;
         }                                                     \
     } while (0);
 
+
 namespace ArgusSamples
 {
 
@@ -86,7 +70,7 @@ namespace ArgusSamples
 static const Size2D<uint32_t> STREAM_SIZE(1920, 1200);
 
 // Debug print macros.
-#define printf(...) printf("PRODUCER: " __VA_ARGS__)
+#define PRODUCER_PRINT(...) printf("PRODUCER: " __VA_ARGS__)
 #define CONSUMER_PRINT(...) printf("CONSUMER: " __VA_ARGS__)
 
 // For stereo camera, maximum number of devices supported in a single session is 2
@@ -97,14 +81,14 @@ enum maxCamDevice
     MAX_CAM_DEVICE = 2
 };
 
-static const float FRAMERATE_DEFAULT = 30.0f;
+static const float FRAMERATE_DEFAULT = 60.0f;
 
 // forward declaration
 class SyncStereoConsumerThread;
 
 #define MAX_MODULE_STRING 32
 
-#define MAX_MODULE_COUNT 2
+#define MAX_MODULE_COUNT 8
 
 #define MAX_HAWK_MODULE_COUNT 4
 
@@ -127,10 +111,12 @@ typedef struct
     SyncStereoConsumerThread *syncStereoConsumer;
     int sensorCount;
     bool initialized;
+
     VPICameraIntrinsic VPI_K[MAX_CAM_DEVICE] = {};
     VPIPolynomialLensDistortionModel VPI_distModel[MAX_CAM_DEVICE] = {};
     VPIPayload remap[MAX_CAM_DEVICE] = {};
     VPIWarpMap map[MAX_CAM_DEVICE] = {};
+
 } ModuleInfo;
 
 
@@ -142,10 +128,8 @@ class SyncStereoConsumerThread : public Thread
 {
 public:
     explicit SyncStereoConsumerThread(ModuleInfo *modInfo,
-                                      uint16_t* sessionMask,
-                                      int cameraDevices_size)
+                                      uint16_t* sessionMask)
     {
-        cameraDevices_size_ = cameraDevices_size;
         m_modInfo_ = modInfo;
         asyncCount = 0;
         sessionsMask = sessionMask;
@@ -188,7 +172,6 @@ private:
     std::vector<int> camDevices;
     uint16_t* sessionsMask;
     ModuleInfo *m_modInfo_;
-    int cameraDevices_size_ = 0;
 };
 
 ICaptureSession* g_iCaptureSession[MAX_MODULE_COUNT];
@@ -198,14 +181,14 @@ bool SyncStereoConsumerThread::threadInitialize()
     CONSUMER_PRINT("Creating FrameConsumer for left stream\n");
     m_leftConsumer = UniqueObj<FrameConsumer>(FrameConsumer::create(m_leftStream));
     if (!m_leftConsumer)
-        printf("Failed to create FrameConsumer for left stream");
+        ORIGINATE_ERROR("Failed to create FrameConsumer for left stream");
 
     if (m_rightStream)
     {
         CONSUMER_PRINT("Creating FrameConsumer for right stream\n");
         m_rightConsumer = UniqueObj<FrameConsumer>(FrameConsumer::create(m_rightStream));
         if (!m_rightConsumer)
-            printf("Failed to create FrameConsumer for right stream");
+            ORIGINATE_ERROR("Failed to create FrameConsumer for right stream");
     }
 
     return true;
@@ -223,13 +206,13 @@ bool SyncStereoConsumerThread::threadExecute()
         iFrameConsumerRight = interface_cast<IFrameConsumer>(m_rightConsumer);
         if (!iFrameConsumerRight)
         {
-            printf("[%s]: Failed to get right stream cosumer\n", m_moduleName);
+            ORIGINATE_ERROR("[%s]: Failed to get right stream cosumer\n", m_moduleName);
         }
         // Wait until the producer has connected to the stream.
         CONSUMER_PRINT("[%s]: Waiting until Argus producer is connected to right stream...\n",
             m_moduleName);
         if (iRightStream->waitUntilConnected() != STATUS_OK)
-            printf("Argus producer failed to connect to right stream.");
+            ORIGINATE_ERROR("Argus producer failed to connect to right stream.");
         CONSUMER_PRINT("[%s]: Argus producer for right stream has connected; continuing.\n",
             m_moduleName);
     }
@@ -238,7 +221,7 @@ bool SyncStereoConsumerThread::threadExecute()
     CONSUMER_PRINT("[%s]: Waiting until Argus producer is connected to left stream...\n",
         m_moduleName);
     if (iLeftStream->waitUntilConnected() != STATUS_OK)
-        printf("[%s]Argus producer failed to connect to left stream.\n", m_moduleName);
+        ORIGINATE_ERROR("[%s]Argus producer failed to connect to left stream.\n", m_moduleName);
     CONSUMER_PRINT("[%s]: Argus producer for left stream has connected; continuing.\n",
         m_moduleName);
 
@@ -257,48 +240,44 @@ bool SyncStereoConsumerThread::threadExecute()
     bool rightDrop = false;
     asyncCount = 0;
     syncCount = 0;
-    int m_dmabufLeft = -1, m_dmabufRight = -1;
-    int stream_width = iLeftStream->getResolution().width();
-    int stream_height = iLeftStream->getResolution().height();
-    
-    // int imgFlags = VPI_BACKEND_CPU | VPI_BACKEND_CUDA;
+
     VPIImage srcImage_l = NULL, srcImage_r = NULL;
     VPIImage dstImage_l = NULL, dstImage_r = NULL;
     VPIImage remapOut_l = NULL, remapOut_r = NULL;
     VPIEvent parentEvent = NULL;
-    VPIImageData imgData_l = {}, imgData_r = {};
     VPIStream streams[2] = {};
-    // VPIImage tmpIn = NULL;
+    VPIImageData imgData_l = {}, imgData_r = {};
     VPIImageData outData_l,outData_r;
-    cv::Mat cvImage_l,cvImage_r;
+    int m_dmabufLeft = -1, m_dmabufRight = -1;
+    int stream_width = iLeftStream->getResolution().width();
+    int stream_height = iLeftStream->getResolution().height();
 
     CHECK_STATUS(vpiImageCreate(stream_width, stream_height, VPI_IMAGE_FORMAT_BGR8, 0, &dstImage_l));
     CHECK_STATUS(vpiImageCreate(stream_width, stream_height, VPI_IMAGE_FORMAT_BGR8, 0, &dstImage_r));
     CHECK_STATUS(vpiImageCreate(stream_width, stream_height, VPI_IMAGE_FORMAT_NV12_ER, 0, &remapOut_l));
     CHECK_STATUS(vpiImageCreate(stream_width, stream_height, VPI_IMAGE_FORMAT_NV12_ER, 0, &remapOut_r));
 
-    // Create 1 event for the parent image
     CHECK_STATUS(vpiEventCreate(0, &parentEvent));
   
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < MAX_CAM_DEVICE; ++i)
     {
         // Create 2 streams to execute algorithms on
         CHECK_STATUS(vpiStreamCreate(0, &streams[i]));
     }
 
-    for(int i = 0 ;i < 2;i++){
+    for(int i = 0 ;i < MAX_CAM_DEVICE;i++){
         VPICameraExtrinsic X = {};
         X[0][0] = X[1][1] = X[2][2] = 1;
-        m_modInfo_[0].map[i].grid.numHorizRegions  = 1;
-        m_modInfo_[0].map[i].grid.numVertRegions   = 1;
-        m_modInfo_[0].map[i].grid.regionWidth[0]   = stream_width;
-        m_modInfo_[0].map[i].grid.regionHeight[0]  = stream_height;
-        m_modInfo_[0].map[i].grid.horizInterval[0] = 1;
-        m_modInfo_[0].map[i].grid.vertInterval[0]  = 1;
-        CHECK_STATUS(vpiWarpMapAllocData(&m_modInfo_[0].map[i]));
-        vpiWarpMapGenerateFromPolynomialLensDistortionModel(m_modInfo_[0].VPI_K[i], X, m_modInfo_[0].VPI_K[i], &m_modInfo_[0].VPI_distModel[i], &m_modInfo_[0].map[i]);
-        CHECK_STATUS(vpiCreateRemap(VPI_BACKEND_CUDA, &m_modInfo_[0].map[i], &m_modInfo_[0].remap[i]));
-        vpiWarpMapFreeData(&m_modInfo_[0].map[i]);
+        m_modInfo_->map[i].grid.numHorizRegions  = 1;
+        m_modInfo_->map[i].grid.numVertRegions   = 1;
+        m_modInfo_->map[i].grid.regionWidth[0]   = stream_width;
+        m_modInfo_->map[i].grid.regionHeight[0]  = stream_height;
+        m_modInfo_->map[i].grid.horizInterval[0] = 1;
+        m_modInfo_->map[i].grid.vertInterval[0]  = 1;
+        CHECK_STATUS(vpiWarpMapAllocData(&m_modInfo_->map[i]));
+        vpiWarpMapGenerateFromPolynomialLensDistortionModel(m_modInfo_->VPI_K[i], X, m_modInfo_->VPI_K[i], &m_modInfo_->VPI_distModel[i], &m_modInfo_->map[i]);
+        CHECK_STATUS(vpiCreateRemap(VPI_BACKEND_VIC, &m_modInfo_->map[i], &m_modInfo_[0].remap[i]));
+        vpiWarpMapFreeData(&m_modInfo_->map[i]);
     }
 
     while (true)
@@ -315,21 +294,21 @@ bool SyncStereoConsumerThread::threadExecute()
             // to provide access to the Image in the Frame.
             iFrameLeft = interface_cast<IFrame>(frameleft);
             if (!iFrameLeft)
-                printf("Failed to get left IFrame interface.");
+                ORIGINATE_ERROR("Failed to get left IFrame interface.");
 
             CaptureMetadata* captureMetadataLeft =
                     interface_cast<IArgusCaptureMetadata>(frameleft)->getMetadata();
             ICaptureMetadata* iMetadataLeft = interface_cast<ICaptureMetadata>(captureMetadataLeft);
             if (!captureMetadataLeft || !iMetadataLeft)
-                printf("Cannot get metadata for frame left");
+                ORIGINATE_ERROR("Cannot get metadata for frame left");
 
             if (iMetadataLeft->getSourceIndex() != LEFT_CAM_DEVICE)
-                printf("Incorrect sensor connected to Left stream");
+                ORIGINATE_ERROR("Incorrect sensor connected to Left stream");
 
             iSensorTimestampTscLeft =
                                 interface_cast<Ext::ISensorTimestampTsc>(captureMetadataLeft);
             if (!iSensorTimestampTscLeft)
-                printf("failed to get iSensorTimestampTscLeft inteface");
+                ORIGINATE_ERROR("failed to get iSensorTimestampTscLeft inteface");
 
             tscTimeStampLeftNew = iSensorTimestampTscLeft->getSensorSofTimestampTsc();
             frameNumberLeft = iFrameLeft->getNumber();
@@ -367,18 +346,19 @@ bool SyncStereoConsumerThread::threadExecute()
                         imgData_l.bufferType = VPI_IMAGE_BUFFER_NVBUFFER;
                         imgData_l.buffer.fd = buffer_params.fd;
                         if(srcImage_l == nullptr){
-                            CHECK_STATUS(vpiImageCreateWrapper(&imgData_l,nullptr,VPI_BACKEND_CUDA,&srcImage_l));
+                            CHECK_STATUS(vpiImageCreateWrapper(&imgData_l,nullptr,VPI_BACKEND_VIC,&srcImage_l));
                         }else{
                             CHECK_STATUS(vpiImageSetWrapper(srcImage_l,&imgData_l));
                         }
-                        CHECK_STATUS(vpiSubmitRemap(streams[0], VPI_BACKEND_CUDA, m_modInfo_[0].remap[1], srcImage_l, remapOut_l, VPI_INTERP_CATMULL_ROM,
+                        CHECK_STATUS(vpiSubmitRemap(streams[0], VPI_BACKEND_VIC, m_modInfo_[0].remap[0], srcImage_l, remapOut_l, VPI_INTERP_CATMULL_ROM,
                                                     VPI_BORDER_ZERO, 0));
-                        CHECK_STATUS(vpiSubmitConvertImageFormat(streams[0], VPI_BACKEND_CUDA, remapOut_l, dstImage_l, NULL));
+                        // CHECK_STATUS(vpiSubmitConvertImageFormat(streams[0], VPI_BACKEND_VIC, remapOut_l, dstImage_l, NULL));
                         CHECK_STATUS(vpiEventRecord(parentEvent, streams[0]));
                         CHECK_STATUS(vpiStreamWaitEvent(streams[1], parentEvent));
                     }
                 }
             }
+
 
         }
 
@@ -394,22 +374,22 @@ bool SyncStereoConsumerThread::threadExecute()
             // to provide access to the Image in the Frame.
             iFrameRight = interface_cast<IFrame>(frameright);
             if (!iFrameRight)
-                printf("Failed to get right IFrame interface.");
+                ORIGINATE_ERROR("Failed to get right IFrame interface.");
 
             CaptureMetadata* captureMetadataRight =
                     interface_cast<IArgusCaptureMetadata>(frameright)->getMetadata();
             ICaptureMetadata* iMetadataRight = interface_cast<ICaptureMetadata>(captureMetadataRight);
             if (!captureMetadataRight || !iMetadataRight)
             {
-                printf("Cannot get metadata for frame right");
+                ORIGINATE_ERROR("Cannot get metadata for frame right");
             }
             if (iMetadataRight->getSourceIndex() != RIGHT_CAM_DEVICE)
-                printf("Incorrect sensor connected to Right stream");
+                ORIGINATE_ERROR("Incorrect sensor connected to Right stream");
 
             iSensorTimestampTscRight =
                                 interface_cast<Ext::ISensorTimestampTsc>(captureMetadataRight);
             if (!iSensorTimestampTscRight)
-                printf("failed to get iSensorTimestampTscRight inteface");
+                ORIGINATE_ERROR("failed to get iSensorTimestampTscRight inteface");
 
             tscTimeStampRightNew = iSensorTimestampTscRight->getSensorSofTimestampTsc2();
             frameNumberRight = iFrameRight->getNumber();
@@ -448,14 +428,14 @@ bool SyncStereoConsumerThread::threadExecute()
                         imgData_r.bufferType = VPI_IMAGE_BUFFER_NVBUFFER;
                         imgData_r.buffer.fd = buffer_params.fd;
                         if(srcImage_r == nullptr){
-                            CHECK_STATUS(vpiImageCreateWrapper(&imgData_r,nullptr,VPI_BACKEND_CUDA,&srcImage_r));
+                            CHECK_STATUS(vpiImageCreateWrapper(&imgData_r,nullptr,VPI_BACKEND_VIC,&srcImage_r));
                         }else{
                             CHECK_STATUS(vpiImageSetWrapper(srcImage_r,&imgData_r));
                         }
-                        CHECK_STATUS(vpiSubmitRemap(streams[1], VPI_BACKEND_CUDA, m_modInfo_[0].remap[0], srcImage_r, remapOut_r, VPI_INTERP_CATMULL_ROM,
+                        CHECK_STATUS(vpiSubmitRemap(streams[1], VPI_BACKEND_VIC, m_modInfo_[0].remap[1], srcImage_r, remapOut_r, VPI_INTERP_CATMULL_ROM,
                             VPI_BORDER_ZERO, 0));
 
-                        CHECK_STATUS(vpiSubmitConvertImageFormat(streams[1], VPI_BACKEND_CUDA, remapOut_r, dstImage_r, NULL));
+                        // CHECK_STATUS(vpiSubmitConvertImageFormat(streams[1], VPI_BACKEND_VIC, remapOut_r, dstImage_r, NULL));
                         CHECK_STATUS(vpiStreamSync(streams[0]));
                         CHECK_STATUS(vpiStreamSync(streams[1]));
 
@@ -472,6 +452,7 @@ bool SyncStereoConsumerThread::threadExecute()
                     }
                 }
             }
+
         }
         tscTimeStampLeft = tscTimeStampLeftNew;
         if (m_rightStream)
@@ -480,6 +461,7 @@ bool SyncStereoConsumerThread::threadExecute()
         }
         else
             tscTimeStampRight = tscTimeStampLeft;
+
 
         diff = llabs(tscTimeStampLeft - tscTimeStampRight);
 
@@ -525,6 +507,7 @@ bool SyncStereoConsumerThread::threadExecute()
 
     CONSUMER_PRINT("shutDown done\n");
 
+
     for (int i = 0; i < 2; ++i)
     {
         if (streams[i] != NULL)
@@ -540,8 +523,8 @@ bool SyncStereoConsumerThread::threadExecute()
     vpiEventDestroy(parentEvent);
     vpiImageDestroy(srcImage_l);
     vpiImageDestroy(srcImage_r);
-    vpiImageDestroy(dstImage_l);
-    vpiImageDestroy(dstImage_r);
+    // vpiImageDestroy(dstImage_l);
+    // vpiImageDestroy(dstImage_r);
 
     return true;
 }
@@ -557,19 +540,19 @@ static void SyncStereoCalibrationData(
     const Ext::ISyncSensorCalibrationData *iSyncSensorCalibrationData, ModuleInfo& moduleInfo, int sensor_id)
 {
     Size2D<uint32_t> ImageSize = iSyncSensorCalibrationData->getImageSizeInPixels();
-    printf(" Image size = %d, %d\n", ImageSize.width(), ImageSize.height());
+    printf("Image size = %d, %d\n", ImageSize.width(), ImageSize.height());
 
     Point2D<float> FocalLength = iSyncSensorCalibrationData->getFocalLength();
-    printf(" Focal Length = %f, %f\n", FocalLength.x(), FocalLength.y());
+    printf("Focal Length = %f, %f\n", FocalLength.x(), FocalLength.y());
 
     Point2D<float> PrincipalPoint = iSyncSensorCalibrationData->getPrincipalPoint();
-    printf(" Principal Point = %f, %f\n", PrincipalPoint.x(), PrincipalPoint.y());
+    printf("Principal Point = %f, %f\n", PrincipalPoint.x(), PrincipalPoint.y());
 
     float K_temp[2][3] = {
         {FocalLength.x(), 0.0, FocalLength.y()},
         {0.0, PrincipalPoint.x(), PrincipalPoint.y()}
     };
-    printf(" sensor_id %d \n",sensor_id);
+    printf("sensor_id %d \n",sensor_id);
     for (int i = 0; i < 2; ++i)
     {
         for (int j = 0; j < 3; ++j)
@@ -578,17 +561,17 @@ static void SyncStereoCalibrationData(
         }
     }
     float Skew = iSyncSensorCalibrationData->getSkew();
-    printf(" Skew = %f\n", Skew);
+    printf("Skew = %f\n", Skew);
 
     MappingType FishEyeMappingType = iSyncSensorCalibrationData->getFisheyeMappingType();
-    printf(" Fish Eye mapping type = %s\n", FishEyeMappingType.getName());
+    printf("Fish Eye mapping type = %s\n", FishEyeMappingType.getName());
 
     DistortionType LensDistortionType = iSyncSensorCalibrationData->getLensDistortionType();
-    printf(" Lens Distortion type = %s\n", LensDistortionType.getName());
+    printf("Lens Distortion type = %s\n", LensDistortionType.getName());
 
     uint32_t RadialCoeffsCount =
                         iSyncSensorCalibrationData->getRadialCoeffsCount(LensDistortionType);
-    printf(" Radial coeffs count = %d\n", RadialCoeffsCount);
+    printf("Radial coeffs count = %d\n", RadialCoeffsCount);
 
     std::vector<float> k;
     iSyncSensorCalibrationData->getRadialCoeffs(&k, LensDistortionType);
@@ -599,7 +582,7 @@ static void SyncStereoCalibrationData(
     moduleInfo.VPI_distModel[sensor_id].k4 = k[3];
     moduleInfo.VPI_distModel[sensor_id].k5 = k[4];
     moduleInfo.VPI_distModel[sensor_id].k6 = k[5];
-    printf(" Radial coefficients = ");
+    printf("Radial coefficients = ");
     for (uint32_t idx = 0; idx < k.size(); idx++)
     {
         printf("%f ", k[idx]);
@@ -607,31 +590,31 @@ static void SyncStereoCalibrationData(
 
     uint32_t TangentialCoeffsCount =
         iSyncSensorCalibrationData->getTangentialCoeffsCount();
-    printf(" Tangential coeffs count = %d\n", TangentialCoeffsCount);
+    printf("Tangential coeffs count = %d\n", TangentialCoeffsCount);
 
     std::vector<float> p;
     iSyncSensorCalibrationData->getTangentialCoeffs(&p);
 
     moduleInfo.VPI_distModel[sensor_id].p1 = p[0];
     moduleInfo.VPI_distModel[sensor_id].p2 = p[1];
-    printf(" Tangential coefficients = ");
+    printf("Tangential coefficients = ");
     for (uint32_t idx = 0; idx < p.size(); idx++)
     {
         printf("%f ", p[idx]);
     }
 
     Point3D<float> rot3d = iSyncSensorCalibrationData->getRotationParams();
-    printf(" rot3d x, y, z{%f, %f, %f}\n", rot3d.x(), rot3d.y(), rot3d.z());
+    printf("rot3d x, y, z{%f, %f, %f}\n", rot3d.x(), rot3d.y(), rot3d.z());
 
     Point3D<float> translation = iSyncSensorCalibrationData->getTranslationParams();
-    printf(" translation 3d x, y, z{%f, %f, %f}\n",
+    printf("translation 3d x, y, z{%f, %f, %f}\n",
         translation.x(), translation.y(), translation.z());
 
     char moduleSerialNumber[MAX_MODULE_STRING];
     iSyncSensorCalibrationData->getModuleSerialNumber(
         moduleSerialNumber, sizeof(moduleSerialNumber));
 
-    printf(" moduleSerialNumber %s\n", moduleSerialNumber);
+    printf("moduleSerialNumber %s\n", moduleSerialNumber);
 
     bool isImu = iSyncSensorCalibrationData->isImuSensorAvailable();
     if (isImu)
@@ -671,13 +654,14 @@ static void SyncStereoCalibrationData(
     }
 }
 
-static bool execute()
+
+static bool execute(const CommonOptions& options)
 {
     ModuleInfo moduleInfo[MAX_MODULE_COUNT];
     int moduleCount = 0;
     int hawkModuleCount = 0;
     uint16_t sessionMask = 0;
-
+    std::vector<uint64_t> perfBuf;
     memset(&moduleInfo, 0, MAX_MODULE_COUNT*sizeof(ModuleInfo));
     for (int i = 0; i < MAX_MODULE_COUNT; i++)
 
@@ -689,14 +673,14 @@ static bool execute()
     // Get the ICameraProvider interface from the global CameraProvider.
     ICameraProvider *iCameraProvider = interface_cast<ICameraProvider>(cameraProvider);
     if (!iCameraProvider)
-        printf("Failed to get ICameraProvider interface");
+        ORIGINATE_ERROR("Failed to get ICameraProvider interface");
     printf("Argus Version: %s\n", iCameraProvider->getVersion().c_str());
 
     // Get the camera devices.
     std::vector<CameraDevice*> cameraDevices;
     iCameraProvider->getCameraDevices(&cameraDevices);
     if (cameraDevices.size() < 2)
-        printf("Must have at least 2 sensors available");
+        ORIGINATE_ERROR("Must have at least 2 sensors available");
 
     /**
      * For multiple HAWK modules, we need to map the available sensors
@@ -710,11 +694,10 @@ static bool execute()
     char syncSensorId[MAX_MODULE_STRING];
     for (uint32_t i = 0; i < cameraDevices.size(); i++)
     {
-        // printf("cameraDevices.size() : %d \n", i);
         Argus::ICameraProperties *iCameraProperties =
                         Argus::interface_cast<Argus::ICameraProperties>(cameraDevices[i]);
         if (!iCameraProperties)
-            printf("Failed to get cameraProperties interface");
+            ORIGINATE_ERROR("Failed to get cameraProperties interface");
 
         printf("getSensorPlacement for sensor %d is %s\n",
                 i, iCameraProperties->getSensorPlacement().getName());
@@ -755,12 +738,16 @@ static bool execute()
     }
 
     if ((moduleCount > MAX_MODULE_COUNT) || (hawkModuleCount > MAX_HAWK_MODULE_COUNT))
-        printf("Failed to get right stream cosumer\n");
+        ORIGINATE_ERROR("Failed to get right stream cosumer\n");
 
     printf("Total Module Count is %d\n", moduleCount);
 
-    iCameraProvider->setSyncSensorSessionsCount(0, 0);
-
+    if (options.sessionSyncExternal())
+        iCameraProvider->setSyncSensorSessionsCount(hawkModuleCount, moduleCount - hawkModuleCount);
+    else {
+        printf("Internal sync pulse selected, relying on HW for Synchronization of cameras \n");
+        iCameraProvider->setSyncSensorSessionsCount(0, 0);
+    }
     int sensor_count = 0;
     int total_SensorCount = 0;
     for (int i = 0; i < moduleCount; i++)
@@ -808,7 +795,7 @@ static bool execute()
         moduleInfo[i].captureSession = iCameraProvider->createCaptureSession(lrCameras);
         g_iCaptureSession[i] = interface_cast<ICaptureSession>(moduleInfo[i].captureSession);
         if (!g_iCaptureSession[i])
-            printf("Failed to get capture session interface");
+            ORIGINATE_ERROR("Failed to get capture session interface");
         moduleInfo[i].isCaptureSessionActive = true;
         /**
          * Create stream settings object and set settings common to both streams in case of HAWK module.
@@ -822,7 +809,7 @@ static bool execute()
         IEGLOutputStreamSettings* iEGLStreamSettings =
             interface_cast<IEGLOutputStreamSettings>(moduleInfo[i].streamSettings);
         if (!iStreamSettings || !iEGLStreamSettings)
-            printf("Failed to create OutputStreamSettings");
+            ORIGINATE_ERROR("Failed to create OutputStreamSettings");
         iEGLStreamSettings->setPixelFormat(PIXEL_FMT_YCbCr_420_888);
         iEGLStreamSettings->setResolution(STREAM_SIZE);
         iEGLStreamSettings->setMetadataEnable(true);
@@ -832,7 +819,7 @@ static bool execute()
         // Create EGL streams based on stream settings created above for HAWK/non-HAWK modules.
         for (int a = 0; a < moduleInfo[i].sensorCount; a++)
         {
-            printf("Creating stream[%d].\n", a);
+            PRODUCER_PRINT("Creating stream[%d].\n", a);
             iStreamSettings->setCameraDevice(lrCameras[a]);
             moduleInfo[i].stream[a] = g_iCaptureSession[i]->createOutputStream(
                                             moduleInfo[i].streamSettings);
@@ -846,13 +833,12 @@ static bool execute()
             {
                 printf("\nCalibration data of sensor %d (device %d) of session %d:\n",
                     j, moduleInfo[i].camDevice[j], i);
-                SyncStereoCalibrationData(iSyncSensorCalibrationData,moduleInfo[i],moduleInfo[i].camDevice[j]);
+                SyncStereoCalibrationData(iSyncSensorCalibrationData,moduleInfo[i],j);
             }
         }
 
     }
 
-    // SyncStereoPerfThread* perfThread = new SyncStereoPerfThread(total_SensorCount, &sessionMask);
 
     IRequest *g_iRequest[MAX_MODULE_COUNT];
     for (int i = 0; i < moduleCount; i++)
@@ -860,39 +846,41 @@ static bool execute()
         if (!moduleInfo[i].isCaptureSessionActive)
             continue;
 
-        printf("Launching syncsensor consumer\n");
-        moduleInfo[i].syncStereoConsumer = new SyncStereoConsumerThread(&moduleInfo[i],&sessionMask,cameraDevices.size());
+        PRODUCER_PRINT("Launching syncsensor consumer\n");
+        moduleInfo[i].syncStereoConsumer = new SyncStereoConsumerThread(&moduleInfo[i],
+                                                                        &sessionMask);
         PROPAGATE_ERROR(moduleInfo[i].syncStereoConsumer->initialize());
         PROPAGATE_ERROR(moduleInfo[i].syncStereoConsumer->waitRunning());
 
         // Create a request
-        printf("creating request[%d] iCaptureSession %p and captureSeesion %p+++++\n",
-            i, (void*)g_iCaptureSession[i],  (void*)moduleInfo[i].captureSession);
+        PRODUCER_PRINT("creating request[%d] iCaptureSession %p and captureSeesion %p+++++\n",
+            i, g_iCaptureSession[i],  moduleInfo[i].captureSession);
         moduleInfo[i].request = g_iCaptureSession[i]->createRequest();
-        printf("creating g_request[%d] for module %d done\n", i, i);
+        PRODUCER_PRINT("creating g_request[%d] for module %d done\n", i, i);
         g_iRequest[i] = interface_cast<IRequest>(moduleInfo[i].request );
-        printf("creating g_iRequest[%d] for module %d interface \n", i, i);
+        PRODUCER_PRINT("creating g_iRequest[%d] for module %d interface \n", i, i);
         if (!g_iRequest[i])
-            printf("Failed to create Request");
+            ORIGINATE_ERROR("Failed to create Request");
 
         // Enable output streams based on EGL streams created above for HAWK/non-HAWK modules.
         for (int a = 0; a < moduleInfo[i].sensorCount; a++)
         {
-            printf("Enable stream[%d].\n", a);
+            PRODUCER_PRINT("Enable stream[%d].\n", a);
             g_iRequest[i]->enableOutputStream(moduleInfo[i].stream[a]);
         }
     }
 
     // Submit capture for the specified time.
-    printf("Starting capture requests \n");
+    PRODUCER_PRINT("Starting capture requests \n");
     for (int i = 0; i < moduleCount; i++)
     {
         if (g_iCaptureSession[i]->repeat(moduleInfo[i].request) != Argus::STATUS_OK)
-            printf("Failed to start capture request for module %d \n",i);
+            ORIGINATE_ERROR("Failed to start capture request for module %d \n",i);
     }
 
     // Wait for specified time (second).
-    sleep(2000);
+    // sleep(options.captureTime());
+    sleep(10);
 
     for (int i = 0; i < moduleCount; i++)
     {
@@ -905,12 +893,13 @@ static bool execute()
         g_iCaptureSession[i]->stopRepeat();
     }
 
+
     for (int i = 0; i < moduleCount; i++)
     {
         g_iCaptureSession[i]->waitForIdle();
 
         // Destroy the output streams to end the consumer thread.
-        printf("Captures complete, disconnecting producer: %d\n", i);
+        PRODUCER_PRINT("Captures complete, disconnecting producer: %d\n", i);
         for (int a = 0; a < moduleInfo[i].sensorCount; a++)
         {
             moduleInfo[i].stream[a]->destroy();
@@ -921,7 +910,7 @@ static bool execute()
         moduleInfo[i].captureSession->destroy();
 
         // Wait for the consumer thread to complete.
-        printf("Wait for consumer thread to complete\n");
+        PRODUCER_PRINT("Wait for consumer thread to complete\n");
         PROPAGATE_ERROR(moduleInfo[i].syncStereoConsumer->shutdown());
         if (moduleInfo[i].syncStereoConsumer)
         {
@@ -933,7 +922,7 @@ static bool execute()
     // Shut down Argus.
     cameraProvider.reset();
 
-    printf("Done -- exiting.\n");
+    PRODUCER_PRINT("Done -- exiting.\n");
     return true;
 }
 
@@ -941,9 +930,17 @@ static bool execute()
 
 int main(int argc, char *argv[])
 {
-    (void)argc;
-    (void)argv;
-    if (!ArgusSamples::execute())
+    ArgusSamples::CommonOptions options(basename(argv[0]),
+                                        ArgusSamples::CommonOptions::Option_T_CaptureTime
+                                        | ArgusSamples::CommonOptions::Option_Y_Fsync
+                                        | ArgusSamples::CommonOptions::Option_K_Kpi);
+
+    if (!options.parse(argc, argv))
+        return EXIT_FAILURE;
+    if (options.requestedExit())
+        return EXIT_SUCCESS;
+
+    if (!ArgusSamples::execute(options))
         return EXIT_FAILURE;
 
     return EXIT_SUCCESS;
