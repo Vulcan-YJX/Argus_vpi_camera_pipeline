@@ -1,10 +1,23 @@
+// Copyright (c) 2025 VulcanYJX
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+
+//     http://www.apache.org/licenses/LICENSE-2.0
+
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include <opencv2/opencv.hpp>
 #include <iostream>
 #include <vector>
 #include <string>
 
-// 定义相机参数
-const cv::Size image_size(1920, 1200); // 图像尺寸
+// 只为测试性能占用，全部使用一套参数
+const cv::Size image_size(1920, 1200);
 const cv::Mat camera_matrix = (cv::Mat_<double>(3, 3) <<
                                964.431946, 0.000000, 951.792114,
                                0.000000, 964.806641, 582.802063,
@@ -15,11 +28,10 @@ const cv::Mat distortion_coefficients = (cv::Mat_<double>(1, 8) <<
                                          0.364355, 0.020056, -0.000219, 0.000041);
 
 int main() {
-    const int num_cameras = 8; // 摄像头数量
+    const int num_cameras = 8;
     std::vector<cv::VideoCapture> cameras(num_cameras);
     std::vector<std::string> pipelines(num_cameras);
 
-    // 初始化摄像头的 GStreamer 管道
     for (int i = 0; i < num_cameras; ++i) {
         pipelines[i] = "nvarguscamerasrc sensor_id=" + std::to_string(i) +
                        " ! video/x-raw(memory:NVMM), width=(int)1920, height=(int)1200, format=(string)NV12, "
@@ -36,34 +48,27 @@ int main() {
 
     std::cout << "All cameras opened successfully!" << std::endl;
 
-    // 初始化存储去畸变结果的映射表
     cv::Mat map1, map2;
     cv::initUndistortRectifyMap(
         camera_matrix, distortion_coefficients, cv::Mat(), camera_matrix,
         image_size, CV_16SC2, map1, map2);
 
-    // 开始读取视频流
     while (true) {
         for (int i = 0; i < num_cameras; ++i) {
             cv::Mat frame, undistorted_frame;
-
-            // 从摄像头读取帧
             if (!cameras[i].read(frame)) {
                 std::cerr << "Failed to capture frame from camera " << i << std::endl;
                 continue;
             }
 
-            // 确保图像尺寸与标定数据一致
             if (frame.size() != image_size) {
                 std::cerr << "Frame size does not match calibration data for camera " << i << std::endl;
                 continue;
             }
 
-            // 去畸变处理
             cv::remap(frame, undistorted_frame, map1, map2, cv::INTER_LINEAR);
             std::cout << "Camera " << i << ": " << frame.cols << "x" << frame.rows << std::endl;
 
-            // 显示去畸变后的结果
             // std::string window_name = "Undistorted Camera " + std::to_string(i);
             // cv::imshow(window_name, undistorted_frame);
         }
