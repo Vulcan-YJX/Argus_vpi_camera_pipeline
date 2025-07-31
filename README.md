@@ -20,9 +20,9 @@
 
 ## 基本信息
 
-| Installation method | Supported platform[s]    |
-| ------------------- | ------------------------ |
-| Source              | Jetpack 6.2.1 , Orin AGX |
+| Installation method | Supported platform[s]    | sensor               |
+| ------------------- | ------------------------ | -------------------- |
+| Source              | Jetpack 6.2.1 , Orin AGX | Hawk x 4 , P3762-A03 |
 
 ------
 
@@ -96,4 +96,3 @@ make -j
   <td>⚠️ <strong>注意：</strong> 分享这个工作，我只希望能够尽可能减少在jetson中使用opencv处理图像的人。把一坨代码扔进来，吃光了资源然后让其他人的工作无法进行，这是灾难性的。</td>
 </tr>
 </table>
-
