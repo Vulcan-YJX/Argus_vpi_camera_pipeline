@@ -62,6 +62,15 @@ make -j
 
 ![argus_cuda](./docs/argus_cuda.png)
 
+------
+
+- 最差选择：`cpu`
+  - 为了对比 `opencv` 处理带来的性能差距，准备了一个反面案例，这也是最多人最常用的。在摄像头数量少的时候可能看起来差距不明显。随着处理的增多，就会一点点的增加资源的损耗。
+
+![opencv_remap](./docs/opencv_remap.png)
+
+
+
 
 
 ------
