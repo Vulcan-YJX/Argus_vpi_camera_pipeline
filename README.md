@@ -20,7 +20,7 @@
 
 ## 基本信息
 
-| Installation method | Supported platform[s]    | sensor               |
+| Installation method | Supported platform[s]    | Sensor               |
 | ------------------- | ------------------------ | -------------------- |
 | Source              | Jetpack 6.2.1 , Orin AGX | Hawk x 4 , P3762-A03 |
 
