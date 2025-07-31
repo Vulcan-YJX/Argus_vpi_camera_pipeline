@@ -90,3 +90,11 @@ target_link_libraries(argus_vpi_stereo_undistort
   ${NVTRANS_LIB_PATH}
   ${NVV4L2_LIB_PATH}
   )
+
+add_executable(opencv_remap
+   samples/opencv_remap.cpp
+)
+
+target_link_libraries(opencv_remap
+  ${OpenCV_LIBS}
+  )
