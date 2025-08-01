@@ -272,198 +272,205 @@ bool SyncStereoConsumerThread::threadExecute()
   }
 
   while (true) {
-    if ((diff / 1000.0f < SYNC_THRESHOLD_TIME_US) || leftDrop) {
-      frameleft = iFrameConsumerLeft->acquireFrame();
-      if (!frameleft) break;
+    try {
+      if ((diff / 1000.0f < SYNC_THRESHOLD_TIME_US) || leftDrop) {
+        frameleft = iFrameConsumerLeft->acquireFrame();
+        if (!frameleft) break;
 
-      leftDrop = false;
+        leftDrop = false;
 
-      // Use the IFrame interface to print out the frame number/timestamp, and
-      // to provide access to the Image in the Frame.
-      iFrameLeft = Argus::interface_cast<EGLStream::IFrame>(frameleft);
-      if (!iFrameLeft) ORIGINATE_ERROR("Failed to get left IFrame interface.");
+        // Use the IFrame interface to print out the frame number/timestamp, and
+        // to provide access to the Image in the Frame.
+        iFrameLeft = Argus::interface_cast<EGLStream::IFrame>(frameleft);
+        if (!iFrameLeft) ORIGINATE_ERROR("Failed to get left IFrame interface.");
 
-      Argus::CaptureMetadata * captureMetadataLeft =
-        Argus::interface_cast<EGLStream::IArgusCaptureMetadata>(frameleft)->getMetadata();
-      Argus::ICaptureMetadata * iMetadataLeft =
-        Argus::interface_cast<Argus::ICaptureMetadata>(captureMetadataLeft);
-      if (!captureMetadataLeft || !iMetadataLeft)
-        ORIGINATE_ERROR("Cannot get metadata for frame left");
+        Argus::CaptureMetadata * captureMetadataLeft =
+          Argus::interface_cast<EGLStream::IArgusCaptureMetadata>(frameleft)->getMetadata();
+        Argus::ICaptureMetadata * iMetadataLeft =
+          Argus::interface_cast<Argus::ICaptureMetadata>(captureMetadataLeft);
+        if (!captureMetadataLeft || !iMetadataLeft)
+          ORIGINATE_ERROR("Cannot get metadata for frame left");
 
-      if (iMetadataLeft->getSourceIndex() != LEFT_CAM_DEVICE)
-        ORIGINATE_ERROR("Incorrect sensor connected to Left stream");
+        if (iMetadataLeft->getSourceIndex() != LEFT_CAM_DEVICE)
+          ORIGINATE_ERROR("Incorrect sensor connected to Left stream");
 
-      iSensorTimestampTscLeft =
-        Argus::interface_cast<Argus::Ext::ISensorTimestampTsc>(captureMetadataLeft);
-      if (!iSensorTimestampTscLeft)
-        ORIGINATE_ERROR("failed to get iSensorTimestampTscLeft inteface");
+        iSensorTimestampTscLeft =
+          Argus::interface_cast<Argus::Ext::ISensorTimestampTsc>(captureMetadataLeft);
+        if (!iSensorTimestampTscLeft)
+          ORIGINATE_ERROR("failed to get iSensorTimestampTscLeft inteface");
 
-      tscTimeStampLeftNew = iSensorTimestampTscLeft->getSensorSofTimestampTsc();
-      frameNumberLeft = iFrameLeft->getNumber();
-      EGLStream::Image * imageLeft = iFrameLeft->getImage();
-      EGLStream::NV::IImageNativeBuffer * iNativeBuffer =
-        Argus::interface_cast<EGLStream::NV::IImageNativeBuffer>(imageLeft);
-      if (!iNativeBuffer) printf("IImageNativeBuffer not supported by Image.");
-      if (m_dmabufLeft == -1) {
-        m_dmabufLeft = iNativeBuffer->createNvBuffer(
-          iLeftStream->getResolution(), NVBUF_COLOR_FORMAT_NV12_ER, NVBUF_LAYOUT_PITCH);
-        if (m_dmabufLeft == -1) printf("\tFailed to create NvBuffer\n");
-      } else if (iNativeBuffer->copyToNvBuffer(m_dmabufLeft) != Argus::STATUS_OK) {
-        printf("Failed to copy frame to NvBuffer.");
-      }
-      {
-        // printf("\tcreate NvBuffer\n");
-        NvBufSurface * nvbuf_surf = 0;
-        if (NvBufSurfaceFromFd(m_dmabufLeft, reinterpret_cast<void **>(&nvbuf_surf)) < 0) {
+        tscTimeStampLeftNew = iSensorTimestampTscLeft->getSensorSofTimestampTsc();
+        frameNumberLeft = iFrameLeft->getNumber();
+        EGLStream::Image * imageLeft = iFrameLeft->getImage();
+        EGLStream::NV::IImageNativeBuffer * iNativeBuffer =
+          Argus::interface_cast<EGLStream::NV::IImageNativeBuffer>(imageLeft);
+        if (!iNativeBuffer) printf("IImageNativeBuffer not supported by Image.");
+        if (m_dmabufLeft == -1) {
+          m_dmabufLeft = iNativeBuffer->createNvBuffer(
+            iLeftStream->getResolution(), NVBUF_COLOR_FORMAT_NV12_ER, NVBUF_LAYOUT_PITCH);
+          if (m_dmabufLeft == -1) printf("\tFailed to create NvBuffer\n");
+        } else if (iNativeBuffer->copyToNvBuffer(m_dmabufLeft) != Argus::STATUS_OK) {
           printf("Failed to copy frame to NvBuffer.");
-        } else {
-          if (nvbuf_surf->surfaceList[0].colorFormat == NVBUF_COLOR_FORMAT_NV12_ER) {
-            NvBufSurfaceMapParams buffer_params;
-            NvBufSurfaceGetMapParams(nvbuf_surf, 0, &buffer_params);
+        }
+        {
+          // printf("\tcreate NvBuffer\n");
+          NvBufSurface * nvbuf_surf = 0;
+          if (NvBufSurfaceFromFd(m_dmabufLeft, reinterpret_cast<void **>(&nvbuf_surf)) < 0) {
+            printf("Failed to copy frame to NvBuffer.");
+          } else {
+            if (nvbuf_surf->surfaceList[0].colorFormat == NVBUF_COLOR_FORMAT_NV12_ER) {
+              NvBufSurfaceMapParams buffer_params;
+              NvBufSurfaceGetMapParams(nvbuf_surf, 0, &buffer_params);
 
-            imgData_l.bufferType = VPI_IMAGE_BUFFER_NVBUFFER;
-            imgData_l.buffer.fd = buffer_params.fd;
-            if (srcImage_l == nullptr) {
-              CHECK_STATUS(
-                vpiImageCreateWrapper(&imgData_l, nullptr, VPI_BACKEND_VIC, &srcImage_l));
-            } else {
-              CHECK_STATUS(vpiImageSetWrapper(srcImage_l, &imgData_l));
+              imgData_l.bufferType = VPI_IMAGE_BUFFER_NVBUFFER;
+              imgData_l.buffer.fd = buffer_params.fd;
+              if (srcImage_l == nullptr) {
+                CHECK_STATUS(
+                  vpiImageCreateWrapper(&imgData_l, nullptr, VPI_BACKEND_VIC, &srcImage_l));
+              } else {
+                CHECK_STATUS(vpiImageSetWrapper(srcImage_l, &imgData_l));
+              }
+              CHECK_STATUS(vpiSubmitRemap(
+                streams[0], VPI_BACKEND_VIC, m_modInfo_[0].remap[0], srcImage_l, remapOut_l,
+                VPI_INTERP_CATMULL_ROM, VPI_BORDER_ZERO, 0));
+              // CHECK_STATUS(vpiSubmitConvertImageFormat
+              // (streams[0], VPI_BACKEND_VIC, remapOut_l, dstImage_l, NULL));
+              CHECK_STATUS(vpiEventRecord(parentEvent, streams[0]));
+              CHECK_STATUS(vpiStreamWaitEvent(streams[1], parentEvent));
             }
-            CHECK_STATUS(vpiSubmitRemap(
-              streams[0], VPI_BACKEND_VIC, m_modInfo_[0].remap[0], srcImage_l, remapOut_l,
-              VPI_INTERP_CATMULL_ROM, VPI_BORDER_ZERO, 0));
-            // CHECK_STATUS(vpiSubmitConvertImageFormat
-            // (streams[0], VPI_BACKEND_VIC, remapOut_l, dstImage_l, NULL));
-            CHECK_STATUS(vpiEventRecord(parentEvent, streams[0]));
-            CHECK_STATUS(vpiStreamWaitEvent(streams[1], parentEvent));
           }
         }
       }
-    }
 
-    if (m_rightStream && ((diff / 1000.0f < SYNC_THRESHOLD_TIME_US) || rightDrop)) {
-      frameright = iFrameConsumerRight->acquireFrame();
-      if (!frameright) break;
+      if (m_rightStream && ((diff / 1000.0f < SYNC_THRESHOLD_TIME_US) || rightDrop)) {
+        frameright = iFrameConsumerRight->acquireFrame();
+        if (!frameright) break;
 
-      rightDrop = false;
+        rightDrop = false;
 
-      // Use the IFrame interface to print out the frame number/timestamp, and
-      // to provide access to the Image in the Frame.
-      iFrameRight = Argus::interface_cast<EGLStream::IFrame>(frameright);
-      if (!iFrameRight) ORIGINATE_ERROR("Failed to get right IFrame interface.");
+        // Use the IFrame interface to print out the frame number/timestamp, and
+        // to provide access to the Image in the Frame.
+        iFrameRight = Argus::interface_cast<EGLStream::IFrame>(frameright);
+        if (!iFrameRight) ORIGINATE_ERROR("Failed to get right IFrame interface.");
 
-      Argus::CaptureMetadata * captureMetadataRight =
-        Argus::interface_cast<EGLStream::IArgusCaptureMetadata>(frameright)->getMetadata();
-      Argus::ICaptureMetadata * iMetadataRight =
-        Argus::interface_cast<Argus::ICaptureMetadata>(captureMetadataRight);
-      if (!captureMetadataRight || !iMetadataRight) {
-        ORIGINATE_ERROR("Cannot get metadata for frame right");
-      }
-      if (iMetadataRight->getSourceIndex() != RIGHT_CAM_DEVICE)
-        ORIGINATE_ERROR("Incorrect sensor connected to Right stream");
+        Argus::CaptureMetadata * captureMetadataRight =
+          Argus::interface_cast<EGLStream::IArgusCaptureMetadata>(frameright)->getMetadata();
+        Argus::ICaptureMetadata * iMetadataRight =
+          Argus::interface_cast<Argus::ICaptureMetadata>(captureMetadataRight);
+        if (!captureMetadataRight || !iMetadataRight) {
+          ORIGINATE_ERROR("Cannot get metadata for frame right");
+        }
+        if (iMetadataRight->getSourceIndex() != RIGHT_CAM_DEVICE)
+          ORIGINATE_ERROR("Incorrect sensor connected to Right stream");
 
-      iSensorTimestampTscRight =
-        Argus::interface_cast<Argus::Ext::ISensorTimestampTsc>(captureMetadataRight);
-      if (!iSensorTimestampTscRight)
-        ORIGINATE_ERROR("failed to get iSensorTimestampTscRight inteface");
+        iSensorTimestampTscRight =
+          Argus::interface_cast<Argus::Ext::ISensorTimestampTsc>(captureMetadataRight);
+        if (!iSensorTimestampTscRight)
+          ORIGINATE_ERROR("failed to get iSensorTimestampTscRight inteface");
 
-      tscTimeStampRightNew = iSensorTimestampTscRight->getSensorSofTimestampTsc2();
-      frameNumberRight = iFrameRight->getNumber();
+        tscTimeStampRightNew = iSensorTimestampTscRight->getSensorSofTimestampTsc2();
+        frameNumberRight = iFrameRight->getNumber();
 
-      EGLStream::Image * imageRight = iFrameRight->getImage();
-      EGLStream::NV::IImageNativeBuffer * iNativeBuffer_r =
-        Argus::interface_cast<EGLStream::NV::IImageNativeBuffer>(imageRight);
-      if (!iNativeBuffer_r) printf("IImageNativeBuffer not supported by Image.");
-      if (m_dmabufRight == -1) {
-        m_dmabufRight = iNativeBuffer_r->createNvBuffer(
-          iLeftStream->getResolution(), NVBUF_COLOR_FORMAT_NV12_ER, NVBUF_LAYOUT_PITCH);
-        if (m_dmabufRight == -1) printf("\tFailed to create NvBuffer\n");
-      } else if (iNativeBuffer_r->copyToNvBuffer(m_dmabufRight) != Argus::STATUS_OK) {
-        printf("Failed to copy frame to NvBuffer.");
-      }
-      {
-        // printf("\t Right NvBuffer\n");
-        NvBufSurface * nvbuf_surf = 0;
-        if (NvBufSurfaceFromFd(m_dmabufRight, reinterpret_cast<void **>(&nvbuf_surf)) < 0) {
+        EGLStream::Image * imageRight = iFrameRight->getImage();
+        EGLStream::NV::IImageNativeBuffer * iNativeBuffer_r =
+          Argus::interface_cast<EGLStream::NV::IImageNativeBuffer>(imageRight);
+        if (!iNativeBuffer_r) printf("IImageNativeBuffer not supported by Image.");
+        if (m_dmabufRight == -1) {
+          m_dmabufRight = iNativeBuffer_r->createNvBuffer(
+            iLeftStream->getResolution(), NVBUF_COLOR_FORMAT_NV12_ER, NVBUF_LAYOUT_PITCH);
+          if (m_dmabufRight == -1) printf("\tFailed to create NvBuffer\n");
+        } else if (iNativeBuffer_r->copyToNvBuffer(m_dmabufRight) != Argus::STATUS_OK) {
           printf("Failed to copy frame to NvBuffer.");
+        }
+        {
+          // printf("\t Right NvBuffer\n");
+          NvBufSurface * nvbuf_surf = 0;
+          if (NvBufSurfaceFromFd(m_dmabufRight, reinterpret_cast<void **>(&nvbuf_surf)) < 0) {
+            printf("Failed to copy frame to NvBuffer.");
 
-        } else {
-          if (nvbuf_surf->surfaceList[0].colorFormat == NVBUF_COLOR_FORMAT_NV12_ER) {
-            NvBufSurfaceMapParams buffer_params;
-            NvBufSurfaceGetMapParams(nvbuf_surf, 0, &buffer_params);
+          } else {
+            if (nvbuf_surf->surfaceList[0].colorFormat == NVBUF_COLOR_FORMAT_NV12_ER) {
+              NvBufSurfaceMapParams buffer_params;
+              NvBufSurfaceGetMapParams(nvbuf_surf, 0, &buffer_params);
 
-            imgData_r.bufferType = VPI_IMAGE_BUFFER_NVBUFFER;
-            imgData_r.buffer.fd = buffer_params.fd;
-            if (srcImage_r == nullptr) {
-              CHECK_STATUS(
-                vpiImageCreateWrapper(&imgData_r, nullptr, VPI_BACKEND_VIC, &srcImage_r));
-            } else {
-              CHECK_STATUS(vpiImageSetWrapper(srcImage_r, &imgData_r));
+              imgData_r.bufferType = VPI_IMAGE_BUFFER_NVBUFFER;
+              imgData_r.buffer.fd = buffer_params.fd;
+              if (srcImage_r == nullptr) {
+                CHECK_STATUS(
+                  vpiImageCreateWrapper(&imgData_r, nullptr, VPI_BACKEND_VIC, &srcImage_r));
+              } else {
+                CHECK_STATUS(vpiImageSetWrapper(srcImage_r, &imgData_r));
+              }
+              CHECK_STATUS(vpiSubmitRemap(
+                streams[1], VPI_BACKEND_VIC, m_modInfo_[0].remap[1], srcImage_r, remapOut_r,
+                VPI_INTERP_CATMULL_ROM, VPI_BORDER_ZERO, 0));
+
+              // CHECK_STATUS(vpiSubmitConvertImageFormat
+              // (streams[1], VPI_BACKEND_VIC, remapOut_r, dstImage_r, NULL));
+              CHECK_STATUS(vpiStreamSync(streams[0]));
+              CHECK_STATUS(vpiStreamSync(streams[1]));
+
+              // CHECK_STATUS(vpiImageLockData
+              // (dstImage_l, VPI_LOCK_READ, VPI_IMAGE_BUFFER_HOST_PITCH_LINEAR, &outData_l));
+              // CHECK_STATUS(vpiImageLockData
+              // (dstImage_r, VPI_LOCK_READ, VPI_IMAGE_BUFFER_HOST_PITCH_LINEAR, &outData_r));
+
+              // CHECK_STATUS(vpiImageDataExportOpenCVMat(outData_l, &cvImage_l));
+              // CHECK_STATUS(vpiImageDataExportOpenCVMat(outData_r, &cvImage_r));
+              // cv::imwrite("vpi1.png", cvImage_l);
+              // cv::imwrite("vpi2.png", cvImage_r);
+              // CHECK_STATUS(vpiImageUnlock(dstImage_l));
+              // CHECK_STATUS(vpiImageUnlock(dstImage_r));
             }
-            CHECK_STATUS(vpiSubmitRemap(
-              streams[1], VPI_BACKEND_VIC, m_modInfo_[0].remap[1], srcImage_r, remapOut_r,
-              VPI_INTERP_CATMULL_ROM, VPI_BORDER_ZERO, 0));
-
-            // CHECK_STATUS(vpiSubmitConvertImageFormat
-            // (streams[1], VPI_BACKEND_VIC, remapOut_r, dstImage_r, NULL));
-            CHECK_STATUS(vpiStreamSync(streams[0]));
-            CHECK_STATUS(vpiStreamSync(streams[1]));
-
-            // CHECK_STATUS(vpiImageLockData
-            // (dstImage_l, VPI_LOCK_READ, VPI_IMAGE_BUFFER_HOST_PITCH_LINEAR, &outData_l));
-            // CHECK_STATUS(vpiImageLockData
-            // (dstImage_r, VPI_LOCK_READ, VPI_IMAGE_BUFFER_HOST_PITCH_LINEAR, &outData_r));
-
-            // CHECK_STATUS(vpiImageDataExportOpenCVMat(outData_l, &cvImage_l));
-            // CHECK_STATUS(vpiImageDataExportOpenCVMat(outData_r, &cvImage_r));
-            // cv::imwrite("vpi1.png", cvImage_l);
-            // cv::imwrite("vpi2.png", cvImage_r);
-            // CHECK_STATUS(vpiImageUnlock(dstImage_l));
-            // CHECK_STATUS(vpiImageUnlock(dstImage_r));
           }
         }
       }
-    }
-    tscTimeStampLeft = tscTimeStampLeftNew;
-    if (m_rightStream) {
-      tscTimeStampRight = tscTimeStampRightNew;
-    } else {
-      tscTimeStampRight = tscTimeStampLeft;
-    }
-    diff = llabs(tscTimeStampLeft - tscTimeStampRight);
-
-    CONSUMER_PRINT(
-      "[%s]: left and right tsc timestamps (us): { %llu %llu }, difference (us): %f and frame "
-      "number: { %llu %llu }\n",
-      m_moduleName, tscTimeStampLeft / 1000, tscTimeStampRight / 1000, diff / 1000.0f,
-      frameNumberLeft, frameNumberRight);
-
-    if (diff / 1000.0f > SYNC_THRESHOLD_TIME_US) {
-      // check if we heave to drop left frame i.e. re-acquire
-      if (tscTimeStampLeft < tscTimeStampRight) {
-        leftDrop = true;
-        printf(
-          "CONSUMER:[%s]: number { %llu %llu } out of sync detected with diff %f us left is ahead "
-          "*********\n",
-          m_moduleName, frameNumberLeft, frameNumberRight, diff / 1000.0f);
-        iFrameLeft->releaseFrame();
+      tscTimeStampLeft = tscTimeStampLeftNew;
+      if (m_rightStream) {
+        tscTimeStampRight = tscTimeStampRightNew;
       } else {
-        rightDrop = true;
-        printf(
-          "CONSUMER:[%s]: number { %llu %llu } out of sync detected with diff %f us right is ahead "
-          "*********\n",
-          m_moduleName, frameNumberLeft, frameNumberRight, diff / 1000.0f);
+        tscTimeStampRight = tscTimeStampLeft;
+      }
+      diff = llabs(tscTimeStampLeft - tscTimeStampRight);
+
+      CONSUMER_PRINT(
+        "[%s]: left and right tsc timestamps (us): { %llu %llu }, difference (us): %f and frame "
+        "number: { %llu %llu }\n",
+        m_moduleName, tscTimeStampLeft / 1000, tscTimeStampRight / 1000, diff / 1000.0f,
+        frameNumberLeft, frameNumberRight);
+
+      if (diff / 1000.0f > SYNC_THRESHOLD_TIME_US) {
+        // check if we heave to drop left frame i.e. re-acquire
+        if (tscTimeStampLeft < tscTimeStampRight) {
+          leftDrop = true;
+          printf(
+            "CONSUMER:[%s]: number { %llu %llu } out of sync detected with diff %f us left is "
+            "ahead "
+            "*********\n",
+            m_moduleName, frameNumberLeft, frameNumberRight, diff / 1000.0f);
+          iFrameLeft->releaseFrame();
+        } else {
+          rightDrop = true;
+          printf(
+            "CONSUMER:[%s]: number { %llu %llu } out of sync detected with diff %f us right is "
+            "ahead "
+            "*********\n",
+            m_moduleName, frameNumberLeft, frameNumberRight, diff / 1000.0f);
+          iFrameRight->releaseFrame();
+        }
+        asyncCount++;
+        continue;
+      }
+
+      CONSUMER_PRINT("[%s] Synchronized frames captured count %ld.\n", m_moduleName, syncCount++);
+      iFrameLeft->releaseFrame();
+
+      if (m_rightStream) {
         iFrameRight->releaseFrame();
       }
-      asyncCount++;
-      continue;
-    }
-
-    CONSUMER_PRINT("[%s] Synchronized frames captured count %ld.\n", m_moduleName, syncCount++);
-    iFrameLeft->releaseFrame();
-
-    if (m_rightStream) {
-      iFrameRight->releaseFrame();
+      /* code */
+    } catch (const std::exception & e) {
+      std::cerr << e.what() << '\n';
     }
   }
 
