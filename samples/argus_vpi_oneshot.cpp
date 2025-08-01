@@ -55,27 +55,27 @@
   }
 
 #define MAX_MODULE_STRING 32
-using namespace Argus;
+// using namespace Argus;
 
 static void SyncStereoCalibrationData(
-  const Ext::ISyncSensorCalibrationData * iSyncSensorCalibrationData)
+  const Argus::Ext::ISyncSensorCalibrationData * iSyncSensorCalibrationData)
 {
-  Size2D<uint32_t> ImageSize = iSyncSensorCalibrationData->getImageSizeInPixels();
+  Argus::Size2D<uint32_t> ImageSize = iSyncSensorCalibrationData->getImageSizeInPixels();
   printf("Image size = %d, %d\n", ImageSize.width(), ImageSize.height());
 
-  Point2D<float> FocalLength = iSyncSensorCalibrationData->getFocalLength();
+  Argus::Point2D<float> FocalLength = iSyncSensorCalibrationData->getFocalLength();
   printf("Focal Length = %f, %f\n", FocalLength.x(), FocalLength.y());
 
-  Point2D<float> PrincipalPoint = iSyncSensorCalibrationData->getPrincipalPoint();
+  Argus::Point2D<float> PrincipalPoint = iSyncSensorCalibrationData->getPrincipalPoint();
   printf("Principal Point = %f, %f\n", PrincipalPoint.x(), PrincipalPoint.y());
 
   float Skew = iSyncSensorCalibrationData->getSkew();
   printf("Skew = %f\n", Skew);
 
-  MappingType FishEyeMappingType = iSyncSensorCalibrationData->getFisheyeMappingType();
+  Argus::MappingType FishEyeMappingType = iSyncSensorCalibrationData->getFisheyeMappingType();
   printf("Fish Eye mapping type = %s\n", FishEyeMappingType.getName());
 
-  DistortionType LensDistortionType = iSyncSensorCalibrationData->getLensDistortionType();
+  Argus::DistortionType LensDistortionType = iSyncSensorCalibrationData->getLensDistortionType();
   printf("Lens Distortion type = %s\n", LensDistortionType.getName());
 
   uint32_t RadialCoeffsCount = iSyncSensorCalibrationData->getRadialCoeffsCount(LensDistortionType);
@@ -100,10 +100,10 @@ static void SyncStereoCalibrationData(
     printf("%f ", p[idx]);
   }
 
-  Point3D<float> rot3d = iSyncSensorCalibrationData->getRotationParams();
+  Argus::Point3D<float> rot3d = iSyncSensorCalibrationData->getRotationParams();
   printf("rot3d x, y, z{%f, %f, %f}\n", rot3d.x(), rot3d.y(), rot3d.z());
 
-  Point3D<float> translation = iSyncSensorCalibrationData->getTranslationParams();
+  Argus::Point3D<float> translation = iSyncSensorCalibrationData->getTranslationParams();
   printf("translation 3d x, y, z{%f, %f, %f}\n", translation.x(), translation.y(), translation.z());
 
   char moduleSerialNumber[MAX_MODULE_STRING];
@@ -115,24 +115,26 @@ static void SyncStereoCalibrationData(
   if (isImu) {
     printf("For IMU sensors \n");
 
-    Point3D<float> linearAccBias = iSyncSensorCalibrationData->getLinearAccBias();
+    Argus::Point3D<float> linearAccBias = iSyncSensorCalibrationData->getLinearAccBias();
     printf(
       "linearAccBias 3d x, y, z{%f, %f, %f}\n", linearAccBias.x(), linearAccBias.y(),
       linearAccBias.z());
 
-    Point3D<float> angularVelocityBias = iSyncSensorCalibrationData->getAngularVelocityBias();
+    Argus::Point3D<float> angularVelocityBias =
+      iSyncSensorCalibrationData->getAngularVelocityBias();
     printf(
       "angularVelocityBias 3d x, y, z{%f, %f, %f}\n", angularVelocityBias.x(),
       angularVelocityBias.y(), angularVelocityBias.z());
 
-    Point3D<float> gravityAcc = iSyncSensorCalibrationData->getGravityAcc();
+    Argus::Point3D<float> gravityAcc = iSyncSensorCalibrationData->getGravityAcc();
     printf("gravityAcc 3d x, y, z{%f, %f, %f}\n", gravityAcc.x(), gravityAcc.y(), gravityAcc.z());
 
-    Point3D<float> imuRotation = iSyncSensorCalibrationData->getImuRotationParams();
+    Argus::Point3D<float> imuRotation = iSyncSensorCalibrationData->getImuRotationParams();
     printf(
       "ImuRotation 3d x, y, z{%f, %f, %f}\n", imuRotation.x(), imuRotation.y(), imuRotation.z());
 
-    Point3D<float> imuTranslationParams = iSyncSensorCalibrationData->getImuTranslationParams();
+    Argus::Point3D<float> imuTranslationParams =
+      iSyncSensorCalibrationData->getImuTranslationParams();
     printf(
       "imuTranslationParams 3d x, y, z{%f, %f, %f}\n", imuTranslationParams.x(),
       imuTranslationParams.y(), imuTranslationParams.z());
@@ -284,7 +286,7 @@ int main(int argc, char ** argv)
       //   printf("\tcreate NvBuffer\n");
       NvBufSurface * nvbuf_surf = 0;
       int ret = 0;
-      ret = NvBufSurfaceFromFd(m_dmabuf, (void **)(&nvbuf_surf));
+      ret = NvBufSurfaceFromFd(m_dmabuf, reinterpret_cast<void **>(&nvbuf_surf));
       if (nvbuf_surf->surfaceList[0].colorFormat == NVBUF_COLOR_FORMAT_BGRA) {
         NvBufSurfaceMapParams buffer_params;
         NvBufSurfaceGetMapParams(nvbuf_surf, 0, &buffer_params);
