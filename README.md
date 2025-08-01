@@ -7,11 +7,11 @@
     语言：<a href="./docs/README_en.md"><strong>English</strong></a> / <strong>中文</strong>
 </p>
 
-​	此项目为了追求在 `jetson` 设备中获得优性能的数据流。并使用 `4` 路 `HAWK` (共 `8` 路摄像头, `1920x1200x30FPS`) 进行测试，在现有测试环境下尽可能的放大了每一个步骤的性能损失。并在[官方描述](https://docs.nvidia.com/jetson/archives/r34.1/DeveloperGuide/text/SD/CameraDevelopment/CameraSoftwareDevelopmentSolution.html)的相机处理流程图中进行了拓展，红色箭头描述了数据的流向。本次测
+​	此项目为了追求在 `jetson` 设备中获得优性能的数据流。并使用 `4` 路 `HAWK` (共 `8` 路摄像头, `1920x1200x30FPS`) 进行测试，在现有测试环境下尽可能的放大了每一个步骤的性能损失。并在[官方描述](https://docs.nvidia.com/jetson/archives/r34.1/DeveloperGuide/text/SD/CameraDevelopment/CameraSoftwareDevelopmentSolution.html)的相机处理流程图中进行了拓展，红色箭头描述了数据的流向。
 
 > [!IMPORTANT]
 >
-> 得的最优路线为：`vi—>isp—>gpu—>vic—>cpu`
+> 本次测得的最优路线为：`vi—>isp—>gpu—>vic—>cpu`
 
 
 如果您有更优秀的实现方案，欢迎指正。
