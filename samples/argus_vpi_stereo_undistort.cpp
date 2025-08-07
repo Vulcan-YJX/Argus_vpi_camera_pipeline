@@ -698,12 +698,12 @@ static bool execute(const CommonOptions & options)
 
   printf("Total Module Count is %d\n", moduleCount);
 
-  if (options.sessionSyncExternal()) {
-    iCameraProvider->setSyncSensorSessionsCount(hawkModuleCount, moduleCount - hawkModuleCount);
-  } else {
+  // if (options.sessionSyncExternal()) {
+    // iCameraProvider->setSyncSensorSessionsCount(hawkModuleCount, moduleCount - hawkModuleCount);
+  // } else {
     printf("Internal sync pulse selected, relying on HW for Synchronization of cameras \n");
     iCameraProvider->setSyncSensorSessionsCount(0, 0);
-  }
+  // }
   int sensor_count = 0;
   int total_SensorCount = 0;
   for (int i = 0; i < moduleCount; i++) {
